@@ -900,7 +900,7 @@ class RayPPOTrainer(object):
                         if self.global_steps % 1 == 0:  # Log every X steps
                             wandb.init()
                             # Get tokenizer through RPC call
-                            tokenizer = ray.get(self.actor_rollout_wg.get_tokenizer.remote())
+                            # tokenizer = ray.get(self.actor_rollout_wg.get_tokenizer.remote())
                             
                             for i in range(min(5, len(batch.batch))):  # Log first 3 examples
                                 # Get the input text
@@ -929,7 +929,7 @@ class RayPPOTrainer(object):
                                 # pickle example data to disk then upload to wandb
                                 with open(f"example_{i}.pkl", "wb") as f:
                                     pickle.dump(example_data, f)
-                                artifact = wandb.Artifact(name="example_{i}", type="state")
+                                artifact = wandb.Artifact(name=f"example_{i}", type="state")
                                 artifact.add_file(f"example_{i}.pkl")
                                 wandb.log_artifact(artifact)
 
