@@ -25,6 +25,8 @@ from pprint import pprint
 from typing import Type, Dict
 from copy import deepcopy
 from tqdm import tqdm
+import wandb
+import pickle
 
 import ray
 import numpy as np
@@ -893,6 +895,46 @@ class RayPPOTrainer(object):
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
+                        
+
+                        if self.global_steps % 1 == 0:  # Log every X steps
+                            wandb.init()
+                            # Get tokenizer through RPC call
+                            tokenizer = ray.get(self.actor_rollout_wg.get_tokenizer.remote())
+                            
+                            for i in range(min(5, len(batch.batch))):  # Log first 3 examples
+                                # Get the input text
+                                input_ids = batch.batch['input_ids'][i]
+                                print('input_ids', input_ids)
+                                # input_text = tokenizer.decode(input_ids)
+                                
+                                # Get the response
+                                response_ids = batch.batch['responses'][i]
+                                print('response_ids', response_ids)
+                                # response_text = tokenizer.decode(response_ids)
+                                
+                                # Get rewards and advantages
+                                rewards = batch.batch['token_level_rewards'][i].tolist() if 'token_level_rewards' in batch.batch else None
+                                advantages = batch.batch['advantages'][i].tolist() if 'advantages' in batch.batch else None
+                                print('rewards', rewards)
+                                print('advantages', advantages)
+                                
+                                example_data = {
+                                    f'example_{i}/input': input_ids,
+                                    f'example_{i}/response': response_ids,
+                                    f'example_{i}/rewards': rewards,
+                                    f'example_{i}/advantages': advantages
+                                }
+
+                                # pickle example data to disk then upload to wandb
+                                with open(f"example_{i}.pkl", "wb") as f:
+                                    pickle.dump(example_data, f)
+                                artifact = wandb.Artifact(name="example_{i}", type="state")
+                                artifact.add_file(f"example_{i}.pkl")
+                                wandb.log_artifact(artifact)
+
+
+                                metrics.update(example_data)
 
                     # update critic
                     if self.use_critic:
