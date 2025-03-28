@@ -927,10 +927,10 @@ class RayPPOTrainer(object):
                                 }
 
                                 # pickle example data to disk then upload to wandb
-                                with open(f"example_{i}.pkl", "wb") as f:
+                                with open(f"epoch_{epoch}_global_step_{self.global_steps}_example_{i}.pkl", "wb") as f:
                                     pickle.dump(example_data, f)
-                                artifact = wandb.Artifact(name=f"example_{i}", type="state")
-                                artifact.add_file(f"example_{i}.pkl")
+                                artifact = wandb.Artifact(name=f"epoch_{epoch}_global_step_{self.global_steps}_example_{i}", type="state")
+                                artifact.add_file(f"epoch_{epoch}_global_step_{self.global_steps}_example_{i}.pkl")
                                 wandb.log_artifact(artifact)
 
 
