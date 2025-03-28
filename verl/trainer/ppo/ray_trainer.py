@@ -897,12 +897,13 @@ class RayPPOTrainer(object):
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
                         
 
-                        if self.global_steps % 25 == 0:  # Log every X steps
+                        if True: #self.global_steps % 25 == 0:  # Log every X steps
                             wandb.init()
                             # Get tokenizer through RPC call
                             # tokenizer = ray.get(self.actor_rollout_wg.get_tokenizer.remote())
                             
-                            for i in range(min(10, len(batch.batch))):  # Log first Y examples
+                            # for i in range(min(10, len(batch.batch))):  # Log first Y examples
+                            for i in range(len(batch.batch)):  # Log first Y examples
                                 # Get the input text
                                 input_ids = batch.batch['input_ids'][i]
                                 # print('input_ids', input_ids)
@@ -920,10 +921,10 @@ class RayPPOTrainer(object):
                                 # print('advantages', advantages)
                                 
                                 example_data = {
-                                    f'example_{i}/input': input_ids.detach().cpu().numpy(),
-                                    f'example_{i}/response': response_ids.detach().cpu().numpy(),
-                                    f'example_{i}/rewards': rewards,
-                                    f'example_{i}/advantages': advantages
+                                    f'input': input_ids.detach().cpu().numpy(),
+                                    f'response': response_ids.detach().cpu().numpy(),
+                                    f'rewards': rewards,
+                                    f'advantages': advantages
                                 }
 
                                 # pickle example data to disk then upload to wandb
