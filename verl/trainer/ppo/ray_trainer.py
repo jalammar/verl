@@ -1225,9 +1225,17 @@ class RayPPOTrainer:
         to construct the PPO dataflow.
         The light-weight advantage computation is done on the driver process.
         """
+        import datetime
+
         from omegaconf import OmegaConf
 
         from verl.utils.tracking import Tracking
+
+        # Open rollout log file (one per run, flushed after every step)
+        os.makedirs("rollout_logs", exist_ok=True)
+        _rollout_log_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        _rollout_log_path = os.path.join("rollout_logs", f"rollouts_{_rollout_log_ts}.jsonl")
+        _rollout_log_file = open(_rollout_log_path, "a")
 
         logger = Tracking(
             project_name=self.config.trainer.project_name,
@@ -1483,6 +1491,64 @@ class RayPPOTrainer:
                             norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
                             config=self.config.algorithm,
                         )
+
+                        # Log rollout groups to JSONL (one record per prompt group per step)
+                        uids = batch.non_tensor_batch["uid"]
+                        uid_to_indices = defaultdict(list)
+                        for _idx, _uid in enumerate(uids):
+                            uid_to_indices[_uid].append(_idx)
+
+                        for _uid, _indices in uid_to_indices.items():
+                            prompt_ids = batch.batch["input_ids"][_indices[0]]
+                            prompt_text = self.tokenizer.decode(
+                                prompt_ids[prompt_ids != self.tokenizer.pad_token_id],
+                                skip_special_tokens=True,
+                            )
+
+                            _responses = []
+                            for _idx in _indices:
+                                resp_mask = batch.batch["response_mask"][_idx].bool()
+                                resp_ids = batch.batch["responses"][_idx]
+
+                                response_text = self.tokenizer.decode(
+                                    resp_ids[resp_mask], skip_special_tokens=True
+                                )
+
+                                # Raw reward: direct output of reward fn, before KL penalty
+                                raw_reward = (
+                                    batch.batch["token_level_scores"][_idx].sum().item()
+                                    if "token_level_scores" in batch.batch
+                                    else None
+                                )
+
+                                # Reward: after KL penalty subtraction, before group normalization
+                                reward = (
+                                    batch.batch["token_level_rewards"][_idx].sum().item()
+                                    if "token_level_rewards" in batch.batch
+                                    else None
+                                )
+
+                                # Advantage: GRPO-normalized ((r - mean) / std within group)
+                                adv_tokens = batch.batch["advantages"][_idx][resp_mask] if "advantages" in batch.batch else None
+                                advantage = adv_tokens[0].item() if adv_tokens is not None and adv_tokens.numel() > 0 else None
+
+                                _responses.append(
+                                    {
+                                        "tokens": response_text,
+                                        "raw_reward": raw_reward,
+                                        "reward": reward,
+                                        "advantage": advantage,
+                                    }
+                                )
+
+                            _record = {
+                                "step": self.global_steps,
+                                "prompt": prompt_text,
+                                "responses": _responses,
+                            }
+                            _rollout_log_file.write(json.dumps(_record) + "\n")
+
+                        _rollout_log_file.flush()
 
                     # update critic
                     if self.use_critic:
