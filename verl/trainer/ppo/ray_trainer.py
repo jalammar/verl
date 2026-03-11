@@ -1499,7 +1499,7 @@ class RayPPOTrainer:
                             uid_to_indices[_uid].append(_idx)
 
                         for _uid, _indices in uid_to_indices.items():
-                            prompt_ids = batch.batch["input_ids"][_indices[0]]
+                            prompt_ids = batch.batch["prompts"][_indices[0]]
                             prompt_text = self.tokenizer.decode(
                                 prompt_ids[prompt_ids != self.tokenizer.pad_token_id],
                                 skip_special_tokens=True,
